@@ -1,6 +1,7 @@
+import 'package:emoji/video_player.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert'; // Import for JSON parsing
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData, rootBundle;
 
 void main() {
   runApp(const EmojiApp());
@@ -169,7 +170,9 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
         // Combine non-flag emojis and flag emojis, with flags at the bottom
         _filteredEmojis = [...nonFlagEmojis, ...flagEmojis];
       } else {
-        // If search text is not empty, filter the emojis
+        // Split the search text into individual words
+        List<String> searchWords = _searchText.split(' ').where((word) => word.isNotEmpty).toList();
+
         _filteredEmojis = emojiMap.values
             .where((emoji) {
           String emojiChar = emoji['emoji'];
@@ -177,20 +180,23 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
           String meaning = emoji['meaning'].toLowerCase();
           List<String> associatedNames = List<String>.from(emoji['associated_names']);
 
-          // Check if emoji matches the search text
-          if (emojiChar.contains(_searchText)) {
+          // Check if emoji character matches any search word
+          if (searchWords.any((word) => emojiChar.contains(word))) {
             return true;
           }
-          if (mainName.contains(_searchText) || meaning.contains(_searchText)) {
-            return true;
-          }
-          return associatedNames.any(
-                  (String associatedName) => associatedName.toLowerCase().contains(_searchText));
+
+          // Check if main name or meaning contains all search words
+          bool matchesMainName = searchWords.every((word) => mainName.contains(word));
+          bool matchesMeaning = searchWords.every((word) => meaning.contains(word));
+          bool matchesAssociatedNames = searchWords.every(
+                  (word) => associatedNames.any((name) => name.toLowerCase().contains(word)));
+
+          return matchesMainName || matchesMeaning || matchesAssociatedNames;
         })
             .map((emoji) {
           // Find the best match for the search text in associated names
           String bestMatch = List<String>.from(emoji['associated_names'])
-              .firstWhere((String name) => name.toLowerCase().contains(_searchText), orElse: () => emoji['main_name']);
+              .firstWhere((String name) => searchWords.any((word) => name.toLowerCase().contains(word)), orElse: () => emoji['main_name']);
 
           // Temporarily use the best match as main_name_temp
           emoji['main_name_temp'] = bestMatch;
@@ -201,33 +207,154 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
   }
 
 
+
   // Show a dialog with all associated names of the emoji
   void _showAssociatedNames(BuildContext context, String emojiCode, List<String> associatedNames) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Associated Names $emojiCode'), // Dynamic title with emoji code
-          content: SingleChildScrollView( // Make the content scrollable
+          title: Text(
+            'Names $emojiCode',
+            style: _emojiTextStyle,
+          ),
+          content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: associatedNames
-                  .map((name) => ListTile(
-                title: Text(name),
+                  .map((name) => Column(
+                children: [
+                  ListTile(
+                    title: Text(
+                      name,
+                      style: const TextStyle(fontSize: 22),
+                    ),
+                  ),
+                  FractionallySizedBox(
+                    widthFactor: 1,
+                    child: const Divider(thickness: 2),
+                  ),
+                ],
               ))
                   .toList(),
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    _showCopyInstructions(context, emojiCode);
+                  },
+                  child: const Text('Copy Emoji'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
             ),
           ],
         );
       },
     );
   }
+
+
+  void _showCopyInstructions(BuildContext context, String emojiCode) {
+    // Copy the emoji to the clipboard
+    Clipboard.setData(ClipboardData(text: emojiCode));
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(
+            'Emoji Copied! $emojiCode',
+            style: _emojiTextStyle.copyWith(fontSize: 24),
+          ),
+          content: Text(
+            'The emoji has been copied to your clipboard. Follow these steps to use it:\n\n'
+                '1. Open your messaging app (like WhatsApp).\n'
+                '2. Go to the chat where you want to use the emoji.\n'
+                '3. Long-press the box where you type your message.\n'
+                '4. Select "Paste" to insert the emoji.',
+            style: const TextStyle(fontSize: 20),
+          ),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close the current dialog
+                    _showVideoHelpDialog(context, emojiCode); // Show the video help dialog
+                  },
+                  child: const Text('Video Help'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+
+
+
+  void _showVideoHelpDialog(BuildContext context, String emojiCode) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('How to Paste the Emoji'),
+          content: SizedBox(
+            height: 200, // Adjust height as needed
+            child: LoopingVideoPlayer(videoPath: 'assets/tutorial.mp4'),
+          ),
+          actions: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(); // Close the current dialog
+                    _showCopyInstructions(context, emojiCode); // Show the copy instructions dialog
+                  },
+                  child: const Text('Text Help'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+
+
+
+
+
+
+  // Define a TextStyle with the custom font
+  final TextStyle _emojiTextStyle = TextStyle(
+    fontFamily: 'WhatsappEmoji',
+    fontSize: 40, // Adjust the size as needed
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -259,7 +386,7 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
                     ListTile(
                       leading: Text(
                         emoji['emoji']!,
-                        style: const TextStyle(fontSize: 40), // Increased emoji size
+                        style: _emojiTextStyle,
                       ),
                       title: Text(
                         emoji['main_name_temp'] ?? emoji['main_name']!,
