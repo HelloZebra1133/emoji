@@ -1,4 +1,4 @@
-import 'package:emoji/video_player.dart';
+import 'package:emoji_assist/video_player.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert'; // Import for JSON parsing
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, rootBundle;
@@ -13,14 +13,36 @@ class EmojiApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Emoji Meaning App',
+      title: 'EmojiAssist',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
+        primaryColor: const Color(0xffdcf8c6), // Custom primary color
+        scaffoldBackgroundColor: const Color(0xffece5dd), // Background color
+        appBarTheme: const AppBarTheme(
+          color: Color(0xffdcf8c6), // Top bar color
+        ),
+        inputDecorationTheme: const InputDecorationTheme(
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(
+              color: Color(0xff504e4e), // Custom color for the active border
+              width: 2.0,
+            ),
+          ),
+          labelStyle: TextStyle(
+            color: Color(0xff000000), // Custom color for the label when focused
+          ),
+
+        ),
+        listTileTheme: const ListTileThemeData(
+          tileColor: Color(0xffece5dd), // Remove white lines by matching the background color
+          selectedTileColor: Color(0xffdcf8c6), // Optional: custom selected tile color
+        ),
+        dividerColor: Colors.transparent, // Set divider color to transparent to remove dividers
       ),
       home: const EmojiCategoriesScreen(),
     );
   }
 }
+
 
 class EmojiCategoriesScreen extends StatefulWidget {
   const EmojiCategoriesScreen({super.key});
@@ -214,6 +236,7 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Color(0xffece5dd),
           title: Text(
             'Names $emojiCode',
             style: _emojiTextStyle,
@@ -271,6 +294,7 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Color(0xffece5dd),
           title: Text(
             'Emoji Copied! $emojiCode',
             style: _emojiTextStyle.copyWith(fontSize: 24),
@@ -315,6 +339,7 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
+          backgroundColor: Color(0xffece5dd),
           title: const Text('How to Paste the Emoji'),
           content: SizedBox(
             height: 200, // Adjust height as needed
@@ -360,7 +385,8 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Emoji Meaning App'),
+        scrolledUnderElevation: 0,
+        title: const Text('EmojiAssist'),
       ),
       body: Column(
         children: [
