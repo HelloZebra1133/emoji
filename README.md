@@ -1,16 +1,13 @@
 # emoji
 
-A new Flutter project.
+A starting point for a mobile Flutter app to assist the elderly in understanding, finding and using emojis in communication applications such as WhatsApp
 
-## Getting Started
+## Features
+- Text and video tutorial on how to use the picked emoji in WhatsApp
+- Allows copy and paste
+- Uses same emoji-look as WhatsApp
+- Search bar to find emoji by meaning or by copied emoji to find meaning
+- Easy UI
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## Motivation
+There remains a communication gap between generations, especially when it comes to the meanings or understandings of emojis. This project contains common definitions and common emojis. This will allow not just better understand and usage but also enable the discovering of emojis for specific needs.
