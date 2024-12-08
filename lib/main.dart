@@ -1,10 +1,17 @@
+import 'package:emoji_assist/settings_screen.dart';
 import 'package:emoji_assist/video_player.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert'; // Import for JSON parsing
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, rootBundle;
+import 'package:provider/provider.dart';
+import 'font_size_provider.dart'; // Import your provide
 
 void main() {
-  runApp(const EmojiApp());
+  runApp(
+      ChangeNotifierProvider(
+      create: (_) => FontSizeProvider(), // Provide the FontSizeProvider
+  child: const EmojiApp())
+  );
 }
 
 class EmojiApp extends StatelessWidget {
@@ -12,6 +19,8 @@ class EmojiApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Access the FontSizeProvider
+    final fontSizeProvider = Provider.of<FontSizeProvider>(context);
     return MaterialApp(
       title: 'EmojiAssist',
       theme: ThemeData(
@@ -64,91 +73,66 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
   }
 
   Future<void> _loadEmojis() async {
-    String data = await rootBundle.loadString('assets/emojis.json');
+    String data = await rootBundle.loadString('assets/emoji_formatted.json');
     Map<String, dynamic> jsonResult = json.decode(data);
 
-    // Map to track the frequency of each name
-    Map<String, int> nameFrequency = {};
-
-    // Map to track all associated names for each emoji code
-    Map<String, List<String>> emojiToNames = {};
-
-    // First pass: count frequencies of all names across emojis and build the map of emoji -> names
-    jsonResult.forEach((key, value) {
-      for (var emojiCode in value) {
-        nameFrequency[key] = (nameFrequency[key] ?? 0) + 1;
-
-        // Add key (name) to the list of names associated with this emoji
-        if (!emojiToNames.containsKey(emojiCode)) {
-          emojiToNames[emojiCode] = [];
+    // Flatten the data into a list of emoji objects
+    jsonResult.forEach((definition, emojis) {
+      for (var emoji in emojis) {
+        if (!emojiMap.containsKey(emoji)) {
+          // Add each emoji as a unique entry in the emojiMap
+          emojiMap[emoji] = {
+            'emoji': emoji,
+            'main_name': definition, // Use the definition as the main name
+            'associated_names': [definition], // Start with only this definition
+            'meaning': definition, // Set the meaning as the definition
+            'mood': definition // Assign the mood as the definition
+          };
+        } else {
+          // Add the definition to associated names if it already exists
+          emojiMap[emoji]?['associated_names'].add(definition);
         }
-        emojiToNames[emojiCode]!.add(key);
       }
     });
 
-    // Second pass: assign both the least common and most common name for each emoji code
-    emojiToNames.forEach((emojiCode, names) {
-      String leastCommonName = names.reduce((name1, name2) =>
-      nameFrequency[name1]! <= nameFrequency[name2]! ? name1 : name2);
-
-      String mostCommonName = names.reduce((name1, name2) =>
-      nameFrequency[name1]! >= nameFrequency[name2]! ? name1 : name2);
-
-      String mood = mostCommonName;
-
-      // Track mood frequency at the class level
-      moodFrequency[mood] = (moodFrequency[mood] ?? 0) + 1;
-
-      emojiMap[emojiCode] = {
-        'emoji': emojiCode,
-        'main_name': leastCommonName,
-        'associated_names': names,
-        'meaning': mostCommonName,
-        'mood': mood
-      };
-    });
-
-    // Split emojis into two lists: flags and non-flags
+    // Split emojis into non-flags and flags for display
     List<Map<String, dynamic>> nonFlagEmojis = [];
     List<Map<String, dynamic>> flagEmojis = [];
 
-    for (var emoji in emojiMap.values) {
+    emojiMap.forEach((_, emoji) {
       if (emoji['meaning'] == 'flag') {
         flagEmojis.add(emoji);
       } else {
         nonFlagEmojis.add(emoji);
       }
-    }
+    });
 
-    // Sort non-flag emojis by the number of associated names, then by mood frequency
+    // Sort emojis (optional, as needed)
     nonFlagEmojis.sort((a, b) {
       int aNamesCount = (a['associated_names'] as List).length;
       int bNamesCount = (b['associated_names'] as List).length;
 
-      // Sort by the number of associated names in descending order
       if (aNamesCount != bNamesCount) {
         return bNamesCount.compareTo(aNamesCount);
       }
 
-      // If the number of names is the same, sort by mood frequency (in descending order)
       int freqA = moodFrequency[a['mood']] ?? 0;
       int freqB = moodFrequency[b['mood']] ?? 0;
-
-      return freqB.compareTo(freqA); // Sort by mood frequency in descending order
+      return freqB.compareTo(freqA);
     });
 
-    // Sort flag emojis by the number of associated names (descending order)
     flagEmojis.sort((a, b) {
       int aNamesCount = (a['associated_names'] as List).length;
       int bNamesCount = (b['associated_names'] as List).length;
       return bNamesCount.compareTo(aNamesCount);
     });
 
-    // Combine non-flag emojis and flag emojis, with flags at the bottom
+    // Combine non-flags and flags for the final filtered list
     setState(() {
       _filteredEmojis = [...nonFlagEmojis, ...flagEmojis];
     });
   }
+
 
   // Filter emojis based on search text
   void _filterEmojis(String searchText) {
@@ -156,77 +140,66 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
       _searchText = searchText.toLowerCase();
 
       if (_searchText.isEmpty) {
-        // Reset to the original sorted list
-        List<Map<String, dynamic>> nonFlagEmojis = [];
-        List<Map<String, dynamic>> flagEmojis = [];
-
-        for (var emoji in emojiMap.values) {
-          if (emoji['meaning'] == 'flag') {
-            flagEmojis.add(emoji);
-          } else {
-            nonFlagEmojis.add(emoji);
-          }
-        }
-
-        // Re-sort non-flag emojis by the number of associated names and mood frequency
-        nonFlagEmojis.sort((a, b) {
-          int aNamesCount = (a['associated_names'] as List).length;
-          int bNamesCount = (b['associated_names'] as List).length;
-
-          if (aNamesCount != bNamesCount) {
-            return bNamesCount.compareTo(aNamesCount);
-          }
-
-          int freqA = moodFrequency[a['mood']] ?? 0;
-          int freqB = moodFrequency[b['mood']] ?? 0;
-          return freqB.compareTo(freqA);
-        });
-
-        // Sort flag emojis by the number of associated names
-        flagEmojis.sort((a, b) {
-          int aNamesCount = (a['associated_names'] as List).length;
-          int bNamesCount = (b['associated_names'] as List).length;
-          return bNamesCount.compareTo(aNamesCount);
-        });
-
-        // Combine non-flag emojis and flag emojis, with flags at the bottom
-        _filteredEmojis = [...nonFlagEmojis, ...flagEmojis];
-      } else {
-        // Split the search text into individual words
-        List<String> searchWords = _searchText.split(' ').where((word) => word.isNotEmpty).toList();
-
-        _filteredEmojis = emojiMap.values
-            .where((emoji) {
-          String emojiChar = emoji['emoji'];
-          String mainName = emoji['main_name'].toLowerCase();
-          String meaning = emoji['meaning'].toLowerCase();
+        // If search text is empty, set name to least shared description
+        _filteredEmojis = emojiMap.values.map((emoji) {
           List<String> associatedNames = List<String>.from(emoji['associated_names']);
 
-          // Check if emoji character matches any search word
-          if (searchWords.any((word) => emojiChar.contains(word))) {
-            return true;
-          }
+          // Find the least shared description
+          String leastSharedName = associatedNames.reduce((name1, name2) {
+            int count1 = emojiMap.values.where((e) => e['associated_names'].contains(name1)).length;
+            int count2 = emojiMap.values.where((e) => e['associated_names'].contains(name2)).length;
+            return count1 < count2 ? name1 : name2;
+          });
 
-          // Check if main name or meaning contains all search words
-          bool matchesMainName = searchWords.every((word) => mainName.contains(word));
-          bool matchesMeaning = searchWords.every((word) => meaning.contains(word));
-          bool matchesAssociatedNames = searchWords.every(
-                  (word) => associatedNames.any((name) => name.toLowerCase().contains(word)));
+          // Find the most shared meaning
+          String mostSharedMeaning = associatedNames.reduce((name1, name2) {
+            int count1 = emojiMap.values.where((e) => e['associated_names'].contains(name1)).length;
+            int count2 = emojiMap.values.where((e) => e['associated_names'].contains(name2)).length;
+            return count1 > count2 ? name1 : name2;
+          });
 
-          return matchesMainName || matchesMeaning || matchesAssociatedNames;
-        })
-            .map((emoji) {
-          // Find the best match for the search text in associated names
-          String bestMatch = List<String>.from(emoji['associated_names'])
-              .firstWhere((String name) => searchWords.any((word) => name.toLowerCase().contains(word)), orElse: () => emoji['main_name']);
+          return {
+            ...emoji,
+            'main_name_temp': leastSharedName,
+            'meaning': mostSharedMeaning,
+          };
+        }).toList();
+      } else {
+        // If search text is not empty, rank by relevance to search term
+        List<String> searchWords = _searchText.split(' ').where((word) => word.isNotEmpty).toList();
 
-          // Temporarily use the best match as main_name_temp
-          emoji['main_name_temp'] = bestMatch;
-          return emoji;
+        _filteredEmojis = emojiMap.values.map((emoji) {
+          List<String> associatedNames = List<String>.from(emoji['associated_names']);
+
+          // Find the most relevant name to the search term
+          String bestMatch = associatedNames.reduce((name1, name2) {
+            int relevance1 = _calculateRelevance(name1.toLowerCase(), searchWords);
+            int relevance2 = _calculateRelevance(name2.toLowerCase(), searchWords);
+            return relevance1 >= relevance2 ? name1 : name2;
+          });
+
+          // Find the most shared meaning
+          String mostSharedMeaning = associatedNames.reduce((name1, name2) {
+            int count1 = emojiMap.values.where((e) => e['associated_names'].contains(name1)).length;
+            int count2 = emojiMap.values.where((e) => e['associated_names'].contains(name2)).length;
+            return count1 > count2 ? name1 : name2;
+          });
+
+          return {
+            ...emoji,
+            'main_name_temp': bestMatch,
+            'meaning': mostSharedMeaning,
+          };
         }).toList();
       }
     });
   }
+
+// Helper method to calculate relevance
+  int _calculateRelevance(String name, List<String> searchWords) {
+    return searchWords.fold(0, (score, word) => score + (name.contains(word) ? 1 : 0));
+  }
+
 
 
 
@@ -236,7 +209,7 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Color(0xffece5dd),
+          backgroundColor: const Color(0xffece5dd),
           title: Text(
             'Names $emojiCode',
             style: _emojiTextStyle,
@@ -253,9 +226,9 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
                       style: const TextStyle(fontSize: 22),
                     ),
                   ),
-                  FractionallySizedBox(
+                  const FractionallySizedBox(
                     widthFactor: 1,
-                    child: const Divider(thickness: 2),
+                    child: Divider(thickness: 2),
                   ),
                 ],
               ))
@@ -294,18 +267,18 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Color(0xffece5dd),
+          backgroundColor: const Color(0xffece5dd),
           title: Text(
             'Emoji Copied! $emojiCode',
             style: _emojiTextStyle.copyWith(fontSize: 24),
           ),
-          content: Text(
+          content: const Text(
             'The emoji has been copied to your clipboard. Follow these steps to use it:\n\n'
                 '1. Open your messaging app (like WhatsApp).\n'
                 '2. Go to the chat where you want to use the emoji.\n'
                 '3. Long-press the box where you type your message.\n'
                 '4. Select "Paste" to insert the emoji.',
-            style: const TextStyle(fontSize: 20),
+            style: TextStyle(fontSize: 20),
           ),
           actions: [
             Row(
@@ -339,9 +312,9 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          backgroundColor: Color(0xffece5dd),
+          backgroundColor: const Color(0xffece5dd),
           title: const Text('How to Paste the Emoji'),
-          content: SizedBox(
+          content: const SizedBox(
             height: 200, // Adjust height as needed
             child: LoopingVideoPlayer(videoPath: 'assets/tutorial.mp4'),
           ),
@@ -376,18 +349,32 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
 
 
   // Define a TextStyle with the custom font
-  final TextStyle _emojiTextStyle = TextStyle(
+  final TextStyle _emojiTextStyle = const TextStyle(
     fontFamily: 'WhatsappEmoji',
     fontSize: 40, // Adjust the size as needed
   );
 
   @override
   Widget build(BuildContext context) {
+    // Access the FontSizeProvider
+    final fontSizeProvider = Provider.of<FontSizeProvider>(context);
     return Scaffold(
       appBar: AppBar(
         scrolledUnderElevation: 0,
         title: const Text('EmojiAssist'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
+
       body: Column(
         children: [
           Padding(
@@ -399,7 +386,7 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
               ),
-              style: const TextStyle(fontSize: 20), // Increased font size for the input
+              style: TextStyle(fontSize: fontSizeProvider.fontSize-2, fontFamily: 'WhatsappEmoji'), // Increased font size for the input
             ),
           ),
           Expanded(
@@ -416,19 +403,19 @@ class _EmojiCategoriesScreenState extends State<EmojiCategoriesScreen> {
                       ),
                       title: Text(
                         emoji['main_name_temp'] ?? emoji['main_name']!,
-                        style: const TextStyle(fontSize: 22), // Larger text for title
+                        style: TextStyle(fontSize: fontSizeProvider.fontSize), // Larger text for title
                       ),
                       subtitle: Text(
                         emoji['meaning']!,
-                        style: const TextStyle(fontSize: 18), // Larger text for subtitle
+                        style: TextStyle(fontSize: fontSizeProvider.fontSize-4), // Larger text for subtitle
                       ),
                       onTap: () {
                         _showAssociatedNames(context, emoji['emoji']!, emoji['associated_names']);
                       },
                     ),
-                    FractionallySizedBox(
+                    const FractionallySizedBox(
                       widthFactor: 0.75, // 75% width of the screen
-                      child: const Divider(thickness: 2), // Add divider between emojis
+                      child: Divider(thickness: 2), // Add divider between emojis
                     ),
                   ],
                 );
