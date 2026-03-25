@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert'; // Import for JSON parsing
 import 'package:flutter/services.dart' show Clipboard, ClipboardData, rootBundle;
 import 'package:provider/provider.dart';
-import 'font_size_provider.dart'; // Import your provide
+import 'font_size_provider.dart';
 
 void main() {
   runApp(
